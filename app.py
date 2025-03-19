@@ -13,7 +13,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 # API URL for fetching vehicle tracking data
 API_URL = "api_Url"
 
-# Local path for vehicle marker icon make folder name 'assets' and add file car_icon.png
+# Local path for vehicle marker icon make 📂 folder name 'assets' and add file car_icon.png
 ICON_URL = "/assets/car_icon.png"
 
 # Function to initialize SQLite database
