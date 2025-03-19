@@ -1,22 +1,22 @@
-import requests
-import sqlite3
-import urllib3
-import threading
-import time
-import datetime
-from dash import Dash, html, dcc, Output, Input
-import dash_leaflet as dl
+import requests  # For API calls
+import sqlite3  # Database for storing vehicle data
+import urllib3  # To disable SSL warnings
+import threading  # Run background tasks
+import time  # Time delay in background tasks
+import datetime  # Handle timestamps
+from dash import Dash, html, dcc, Output, Input  # Dash framework for web UI
+import dash_leaflet as dl  # Display maps and vehicle markers
 
-# Disable SSL warnings
+# Disable SSL warnings for API requests
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-# API URL
-API_URL = "https://103.9.23.45/TrakkerServices/Api/Home/GetSOSLastLocation/SOSUser1/SOSPassword1/03300607077/null"
+# API URL for fetching vehicle tracking data
+API_URL = "api_Url"
 
-# Path to the local vehicle icon
+# Local path for vehicle marker icon make folder name 'assets' and add file car_icon.png
 ICON_URL = "/assets/car_icon.png"
 
-# Initialize SQLite Database
+# Function to initialize SQLite database
 def init_db():
     conn = sqlite3.connect("vehicles.db", check_same_thread=False)
     cursor = conn.cursor()
@@ -36,13 +36,13 @@ def init_db():
     conn.commit()
     conn.close()
 
-# Store vehicle data (Append new entries)
+# Store API vehicle data in the database
 def store_vehicle_data(vehicles):
     conn = sqlite3.connect("vehicles.db", check_same_thread=False)
     cursor = conn.cursor()
     
     for vehicle in vehicles:
-        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")  # Timestamp with microseconds
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")  # Generate current timestamp
         
         cursor.execute('''
             INSERT INTO vehicles (RegNo, Lat, Lng, Speed, StatusText, Location, Timestamp)
@@ -58,38 +58,37 @@ def store_vehicle_data(vehicles):
     conn.commit()
     conn.close()
 
-# Fetch data from API and store in database
+# Fetch vehicle tracking data from API
 def fetch_vehicle_data():
     try:
         response = requests.get(API_URL, verify=False, timeout=5)
         response.raise_for_status()
         data = response.json()
         
-        # Debugging: Print response to check format
-        print("API Response:", data)
+        print("API Response:", data)  # Debugging: Print response to check format
         
         if not isinstance(data, list):
             print("⚠️ Unexpected API response format")
             return []
         
-        store_vehicle_data(data)  # Save every data point in DB
+        store_vehicle_data(data)  # Save fetched data in the database
         return data
     except requests.exceptions.RequestException as e:
         print(f"🚨 Error fetching data: {e}")
         return []
 
-# Start background thread for fetching data
+# Background thread to fetch data every 5 seconds
 def background_fetch():
     while True:
         fetch_vehicle_data()
-        time.sleep(5)  # Fetch data every 5 seconds
+        time.sleep(5)
 
-threading.Thread(target=background_fetch, daemon=True).start()
+threading.Thread(target=background_fetch, daemon=True).start()  # Start background thread
 
-# Initialize database
+# Initialize the database
 init_db()
 
-# Dash Web App
+# Dash Web Application
 app = Dash(__name__)
 
 app.layout = html.Div([
@@ -101,10 +100,11 @@ app.layout = html.Div([
         dl.TileLayer(url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"),
         dl.LayerGroup(id="vehicle-layer")  # Holds vehicle markers
     ], style={'width': '100%', 'height': '600px'}, id="map"),
-
-    dcc.Interval(id='interval-component', interval=5000, n_intervals=0)  # Refresh every 5 sec
+    
+    dcc.Interval(id='interval-component', interval=5000, n_intervals=0)  # Refresh every 5 seconds
 ])
 
+# Update vehicle markers on the map
 @app.callback([
     Output('vehicle-dropdown', 'options'),
     Output('vehicle-layer', 'children')
@@ -113,10 +113,10 @@ app.layout = html.Div([
     Input('interval-component', 'n_intervals')
 ])
 def update_markers(selected_regno, _):
-    """Fetch latest vehicle positions and update markers."""
     conn = sqlite3.connect("vehicles.db", check_same_thread=False)
     cursor = conn.cursor()
     
+    # Fetch latest location of each vehicle
     cursor.execute("""
         SELECT RegNo, Lat, Lng, Speed, StatusText, Location, Timestamp
         FROM vehicles
@@ -133,7 +133,6 @@ def update_markers(selected_regno, _):
     
     reg_no_list = [v[0] for v in vehicles]
     
-    # If no vehicle is selected, show all vehicles
     markers = []
     for vehicle in vehicles:
         if selected_regno is None or vehicle[0] == selected_regno:
@@ -144,7 +143,7 @@ def update_markers(selected_regno, _):
                 html.B("Location:"), f" {vehicle[5]}", html.Br(),
                 html.B("Lat:"), f" {vehicle[1]}", html.Br(),
                 html.B("Lng:"), f" {vehicle[2]}", html.Br(),
-                html.B("Timestamp:"), f" {vehicle[6]}", html.Br()  # Displays with microseconds
+                html.B("Timestamp:"), f" {vehicle[6]}", html.Br()
             ])
             
             markers.append(dl.Marker(
